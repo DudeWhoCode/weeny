@@ -58,6 +58,7 @@ func lookup(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		respond(w, "Failure", "")
 	} else {
+		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 		respond(w, "Success", url)
 	}
 }
