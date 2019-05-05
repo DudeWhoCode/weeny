@@ -19,7 +19,7 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func respond(w io.Writer, msg, data string) {
 	response := struct {
 		Message string `json:"message"`
-		Data    string `json:"string"`
+		Data    string `json:"data"`
 	}{
 		Message: msg,
 		Data:    data,
