@@ -8,10 +8,20 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
 )
 
-var urls = map[string]string{}
+var client *redis.Client
+
+func init() {
+	client = redis.NewClient(
+		&redis.Options{
+			Addr:     "localhost:6379",
+			Password: "",
+			DB:       0,
+		})
+}
 
 func ping(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Pong")
@@ -65,14 +75,14 @@ func shotern(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, "Success", urlHash)
-	urls[urlHash] = payload.URL
+	client.HSet("urlmaps", urlHash, payload.URL)
 
 }
 
 func lookup(w http.ResponseWriter, r *http.Request) {
 	hash := mux.Vars(r)["hash"]
-	url, ok := urls[hash]
-	if !ok {
+	url, err := client.HGet("urlmaps", hash).Result()
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		respond(w, "Failure", "")
 		return
