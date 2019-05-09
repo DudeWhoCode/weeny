@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/gorilla/mux"
 )
@@ -36,6 +37,14 @@ func Hash(a string) (string, error) {
 	}
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
+func isValidURL(toTest string) bool {
+	_, err := url.ParseRequestURI(toTest)
+	if err != nil {
+		return false
+	}
+	return true
+
+}
 
 func shotern(w http.ResponseWriter, r *http.Request) {
 	var payload struct {
@@ -43,32 +52,43 @@ func shotern(w http.ResponseWriter, r *http.Request) {
 	}
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&payload)
-	urlHash, err := Hash(payload.URL)
-	if err != nil {
-		respond(w, "Failure", "")
-	} else {
-		respond(w, "Success", urlHash)
-		urls[urlHash] = payload.URL
+	if valid := isValidURL(payload.URL); !valid {
+		w.WriteHeader(http.StatusBadRequest)
+		respond(w, "Not a valid URL", "")
+		return
 	}
+	urlHash, err := Hash(payload.URL)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		respond(w, "Failure", "")
+		return
+	}
+	respond(w, "Success", urlHash)
+	urls[urlHash] = payload.URL
+
 }
 
 func lookup(w http.ResponseWriter, r *http.Request) {
 	hash := mux.Vars(r)["hash"]
 	url, ok := urls[hash]
 	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
 		respond(w, "Failure", "")
-	} else {
-		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
-		respond(w, "Success", url)
+		return
 	}
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	respond(w, "Success", url)
+
 }
 
 func main() {
 	r := mux.NewRouter()
-	r.HandleFunc("/ping", ping)
-	r.HandleFunc("/shortern", shotern)
-	r.HandleFunc("/{hash}", lookup)
-	http.Handle("/", r)
+	r.HandleFunc("/ping", ping).Methods("GET")
+	r.HandleFunc("/shortern", shotern).Methods("POST")
+	r.HandleFunc("/{hash}", lookup).Methods("GET")
 	fmt.Println("Starting the server... ")
-	http.ListenAndServe("localhost:8000", nil)
+	if err := http.ListenAndServe("localhost:8000", r); err != nil {
+		fmt.Printf("Failed to start server %v \n", err)
+	}
 }
