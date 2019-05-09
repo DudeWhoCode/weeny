@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/go-redis/redis"
 	"github.com/gorilla/mux"
@@ -21,22 +22,32 @@ func init() {
 			Password: "",
 			DB:       0,
 		})
+	res := client.Ping()
+	if res.Err() != nil {
+		fmt.Printf("Failed to connect to redis : %v \n", res.Err())
+		os.Exit(1)
+	}
+}
+
+type response struct {
+	Message string `json:"message"`
+	Data    string `json:"data"`
 }
 
 func ping(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Pong")
 }
 
+func respondError(w http.ResponseWriter, message string) {
+	w.WriteHeader(http.StatusBadRequest)
+	respond(w, message, "")
+}
 func respond(w io.Writer, msg, data string) {
-	response := struct {
-		Message string `json:"message"`
-		Data    string `json:"data"`
-	}{
+	response := response{
 		Message: msg,
 		Data:    data,
 	}
-	enc := json.NewEncoder(w)
-	enc.Encode(response)
+	json.NewEncoder(w).Encode(response)
 }
 
 func Hash(a string) (string, error) {
@@ -63,19 +74,21 @@ func shotern(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 	decoder.Decode(&payload)
 	if valid := isValidURL(payload.URL); !valid {
-		w.WriteHeader(http.StatusBadRequest)
-		respond(w, "Not a valid URL", "")
+		respondError(w, "Not a valid URL")
 		return
 	}
 	urlHash, err := Hash(payload.URL)
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		respond(w, "Failure", "")
+		respondError(w, "Failure")
+		return
+	}
+	res := client.HSet("urlmaps", urlHash, payload.URL)
+	if res.Err() != nil {
+		respondError(w, "Failed to save value in redis")
 		return
 	}
 	respond(w, "Success", urlHash)
-	client.HSet("urlmaps", urlHash, payload.URL)
 
 }
 
@@ -83,8 +96,8 @@ func lookup(w http.ResponseWriter, r *http.Request) {
 	hash := mux.Vars(r)["hash"]
 	url, err := client.HGet("urlmaps", hash).Result()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		respond(w, "Failure", "")
+		fmt.Printf("Error : %v \n", err)
+		respondError(w, "Failure")
 		return
 	}
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
