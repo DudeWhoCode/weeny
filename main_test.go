@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,18 +41,12 @@ func TestPing(t *testing.T) {
 }
 
 func TestShortern(t *testing.T) {
-	payload := struct {
-		URL string `json:"url"`
-	}{
-		URL: "https://github.com/go-redis/redis",
-	}
-	requestBody, err := json.Marshal(payload)
+	reader := strings.NewReader(`{"URL":"https://github.com/go-redis/redis"}`)
+	req, err := http.NewRequest("POST", "/shortern", reader)
+
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
-
-	req, err := http.NewRequest("POST", "/shortern", bytes.NewBuffer(requestBody))
-
 	rr := httptest.NewRecorder()
 	http.HandlerFunc(shotern).ServeHTTP(rr, req)
 
