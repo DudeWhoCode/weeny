@@ -83,7 +83,7 @@ func (api *ApiServer) shotern(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (api *ApiServer) lookup(w http.ResponseWriter, r *http.Request) {
+func (api *ApiServer) redirect(w http.ResponseWriter, r *http.Request) {
 	hash := mux.Vars(r)["hash"]
 	url, err := api.cache.HGet("urlmaps", hash).Result()
 	if err != nil {
@@ -121,7 +121,7 @@ func NewServer() *ApiServer {
 func (api *ApiServer) Start(host string, port int) error {
 	api.r.HandleFunc("/ping", ping).Methods("GET")
 	api.r.HandleFunc("/shortern", api.shotern).Methods("POST")
-	api.r.HandleFunc("/{hash}", api.lookup).Methods("GET")
+	api.r.HandleFunc("/{hash}", api.redirect).Methods("GET")
 	api.r.HandleFunc("/lookup/{hash}", api.lookup).Methods("GET")
 	fmt.Println("Starting the server... ")
 	addr := fmt.Sprintf("%s:%d", host, port)
